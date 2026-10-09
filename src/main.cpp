@@ -89,9 +89,22 @@ void ZoomApp::updateViewAfterResize() {
     //      Color::Black in render()
     // ====== ====== ======
 
-    // Calculate newViewport based on aspect ratios of window and of mWorldSize. Then:
-    // mWorldViewDefault.setViewport(newViewport);
-    // mWorldViewZoomed.setViewport(newViewport);
+    // Calculate newViewport based on aspect ratios of window and of mWorldSize.
+    sf::Vector2f windowSize(mWindow.getSize());
+    float windowRatio = windowSize.x / windowSize.y;
+    float worldRatio = mWorldSize.x / mWorldSize.y;
+    sf::FloatRect newViewport({0.f, 0.f}, {1.f, 1.f});
+    if (windowRatio > worldRatio) {
+        // Window is wider than world: vertical bars on left/right
+        newViewport.size.x = worldRatio / windowRatio;
+        newViewport.position.x = (1.f - newViewport.size.x) / 2.f;
+    } else {
+        // Window is taller than world: horizontal bars on top/bottom
+        newViewport.size.y = windowRatio / worldRatio;
+        newViewport.position.y = (1.f - newViewport.size.y) / 2.f;
+    }
+    mWorldViewDefault.setViewport(newViewport);
+    mWorldViewZoomed.setViewport(newViewport);
 }
 
 // updateZoomView sets the center of mWorldViewZoomed such that the zoomed view would have the
@@ -111,14 +124,28 @@ void ZoomApp::updateZoomView(sf::Vector2i mousePos) {
     //  HINT: Determine the steps to go from the desired center to the top-left of this new
     //        world-space rectangle, then from this top-left to the thing you're pointing at,
     //        using our above computed vars. Then solve the equation for the desired center.
+    sf::Vector2f windowSize(mWindow.getSize());
+    sf::FloatRect viewport = mWorldViewDefault.getViewport();
+    // (1)
+    sf::Vector2f viewportTopLeftPx = viewport.position * windowSize;
+    sf::Vector2f viewportSizePx = viewport.size * windowSize;
+    sf::Vector2f mouseRelPx = sf::Vector2f(mousePos) - viewportTopLeftPx;
+    // (2)
+    sf::Vector2f mouseFrac = mouseRelPx.componentWiseDiv(viewportSizePx);
+    // (3)
+    sf::Vector2f mouseWorld = mouseFrac * mWorldSize;
+    // (4) mouseWorld = (center - zoomSize / 2) + mouseFrac * zoomSize
+    sf::Vector2f zoomSize = mWorldViewZoomed.getSize();
+    sf::Vector2f center = mouseWorld - mouseFrac * zoomSize + zoomSize * 0.5f;
+    mWorldViewZoomed.setCenter(center);
 }
 
 void ZoomApp::render() {
     mWindow.clear(sf::Color::Black);
     if (!mIsZooming) {
-        // TODO: If the user is not zooming in, use the default world view.
+        mWindow.setView(mWorldViewDefault);
     } else {
-        // TODO: If the user is zooming in, use the zoomed world view.
+        mWindow.setView(mWorldViewZoomed);
     }
     mWindow.draw(*mWaldoSprite);
     mWindow.display();
